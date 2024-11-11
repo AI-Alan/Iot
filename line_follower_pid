@@ -1,0 +1,139 @@
+// Pin definitions
+#define LEFT_MOTOR_PWM 9    // PWM pin for left motor
+#define RIGHT_MOTOR_PWM 10   // PWM pin for right motor
+#define LEFT_MOTOR_DIR_1 7    // Direction pin 1 for left motor forward
+#define LEFT_MOTOR_DIR_2 6    // Direction pin 2 for left motor
+#define RIGHT_MOTOR_DIR_1 8   // Direction pin 1 for right motor forward
+#define RIGHT_MOTOR_DIR_2 5   // Direction pin 2 for right motor
+
+// Sensor pins
+#define IR_SENSOR_1 A0
+#define IR_SENSOR_2 A1
+#define IR_SENSOR_3 A2
+#define IR_SENSOR_4 A3
+#define IR_SENSOR_5 A4
+
+// PID constants
+float Kp = 5;  // Proportional gain
+float Ki = 0.0;  // Integral gain (can start with 0)
+float Kd = 0;  // Derivative gain
+
+int baseSpeed = 15;      // Base motor speed (adjustable)
+int maxSpeed = 255;       // Max motor speed
+
+// PID variables
+float error = 0, previousError = 0;
+float P = 0, I = 0, D = 0;
+float PID_value = 0;
+
+// Sensor readings
+int sensorValues[5];      // Array to store IR sensor readings
+
+void setup() {
+  // Set motor pins as output
+  pinMode(LEFT_MOTOR_PWM, OUTPUT);
+  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
+  pinMode(LEFT_MOTOR_DIR_1, OUTPUT);
+  pinMode(LEFT_MOTOR_DIR_2, OUTPUT);
+  pinMode(RIGHT_MOTOR_DIR_1, OUTPUT);
+  pinMode(RIGHT_MOTOR_DIR_2, OUTPUT);
+
+  // Set sensor pins as input
+  pinMode(IR_SENSOR_1, INPUT);
+  pinMode(IR_SENSOR_2, INPUT);
+  pinMode(IR_SENSOR_3, INPUT);
+  pinMode(IR_SENSOR_4, INPUT);
+  pinMode(IR_SENSOR_5, INPUT);
+
+  // Start serial communication for debugging
+  Serial.begin(9600);         
+  Serial.println("Robot Initialized");
+}
+
+void loop() {
+  readSensors();
+  
+  error = calculateError();
+  
+  P = error;
+  I += error;
+  D = error - previousError;
+
+  PID_value = (Kp * P) + (Ki * I) + (Kd * D);
+
+  int leftSpeed = baseSpeed + PID_value;   // Increase left motor speed by PID value
+  int rightSpeed = baseSpeed - PID_value;  // Decrease right motor speed by PID value
+
+  // Constrain speeds to the allowed range
+  leftSpeed = constrain(leftSpeed, 0, maxSpeed);
+  rightSpeed = constrain(rightSpeed, 0, maxSpeed);
+
+  // Move the motors with calculated speeds
+  moveMotors(leftSpeed, rightSpeed);
+
+  previousError = error;
+
+  delay(10);  // Small delay to stabilize the loop
+}
+
+void readSensors() {
+  // Read the sensors and store the values in the array
+  sensorValues[0] =  !digitalRead(IR_SENSOR_1);
+  sensorValues[1] = !digitalRead(IR_SENSOR_2);
+  sensorValues[2] = !digitalRead(IR_SENSOR_3);
+  sensorValues[3] = !digitalRead(IR_SENSOR_4);
+  sensorValues[4] = !digitalRead(IR_SENSOR_5);
+
+  // Optional: print sensor readings for debugging
+  Serial.print(sensorValues[0]);
+  Serial.print(" ");
+  Serial.print(sensorValues[1]);
+  Serial.print(" ");
+  Serial.print(sensorValues[2]);
+  Serial.print(" ");
+  Serial.print(sensorValues[3]);
+  Serial.print(" ");
+  Serial.println(sensorValues[4]);
+}
+
+float calculateError() {
+  // This function calculates the error based on sensor values
+  // Adjust weights based on the placement of your sensors
+  float weightedSum = 0;
+
+  for (int i = 0; i < 5; i++) {
+    weightedSum += sensorValues[i] * (i - 2);  // i-2 gives -2, -1, 0, 1, 2 weights
+  }
+
+  if (weightedSum == 0) {
+    // If no sensor is detecting the line (robot is lost), return the previous error
+    return previousError;
+  }
+
+  // Return the weighted sum directly
+  return weightedSum;
+}
+
+void moveMotors(int leftSpeed, int rightSpeed) {
+  // Control LEFT motor
+  if (leftSpeed > 0) {
+    digitalWrite(LEFT_MOTOR_DIR_1, HIGH);  // Forward direction
+    digitalWrite(LEFT_MOTOR_DIR_2, LOW);
+  } else {
+    digitalWrite(LEFT_MOTOR_DIR_1, LOW);   // Reverse direction
+    digitalWrite(LEFT_MOTOR_DIR_2, HIGH);
+    leftSpeed = (-leftSpeed)-5;  // Convert speed to positive for PWM
+  }
+  analogWrite(LEFT_MOTOR_PWM, leftSpeed);  // Set the speed for left motor
+
+  // Control RIGHT motor
+  if (rightSpeed > 0) {
+    digitalWrite(RIGHT_MOTOR_DIR_1, HIGH);  // Forward direction
+    digitalWrite(RIGHT_MOTOR_DIR_2, LOW);
+  } else {
+    digitalWrite(RIGHT_MOTOR_DIR_1, LOW);   // Reverse direction
+    digitalWrite(RIGHT_MOTOR_DIR_2, HIGH);
+    rightSpeed = (-rightSpeed)-5;  // Convert speed to positive for PWM
+  }
+  analogWrite(RIGHT_MOTOR_PWM, rightSpeed);  // Set the speed for right motor
+}
